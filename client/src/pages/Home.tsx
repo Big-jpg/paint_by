@@ -15,13 +15,22 @@ const LOGO_URL =
   "https://d2xsxph8kpxj0f.cloudfront.net/310519663056684383/hgP5jjpvxGXvGrobPfFbvS/pbn-logo-gZVHmbuQ3u4ghWCuDz7qhk.webp";
 
 export default function Home() {
-  const { status, progress, overallProgress, result, error, process, cancel, reset } =
-    usePbnWorker();
+  const {
+    status,
+    progress,
+    overallProgress,
+    result,
+    error,
+    process,
+    cancel,
+    reset,
+  } = usePbnWorker();
 
   const [settings, setSettings] = useState<PbnSettings>({
-    kMeansNrOfClusters: 16,
-    removeFacetsSmallerThanNrOfPoints: 20,
-    sizeMultiplier: 3,
+    imageTreatment: "color",
+    paletteSize: 14,
+    paperSize: "A4",
+    orientation: "landscape",
   });
 
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
@@ -51,7 +60,11 @@ export default function Home() {
         if (item.type.startsWith("image/")) {
           const file = item.getAsFile();
           if (file) {
-            void imageFileToData(file).then(({ imageData, previewUrl }) => {
+            void imageFileToData(file, {
+              treatment: settings.imageTreatment,
+              paperSize: settings.paperSize,
+              orientation: settings.orientation,
+            }).then(({ imageData, previewUrl }) => {
               setPreviewUrl(previewUrl);
               process(imageData, settings);
             });
@@ -91,7 +104,14 @@ export default function Home() {
                   All processing runs locally in your browser.
                 </p>
               </div>
-              <ImageUploader onImageReady={handleImageReady} />
+              <ImageUploader
+                onImageReady={handleImageReady}
+                prepOptions={{
+                  treatment: settings.imageTreatment,
+                  paperSize: settings.paperSize,
+                  orientation: settings.orientation,
+                }}
+              />
               <SettingsPanel settings={settings} onChange={setSettings} />
             </>
           )}

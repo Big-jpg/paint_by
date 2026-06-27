@@ -5,7 +5,14 @@
  */
 
 import { useCallback, useRef, useState } from "react";
-import { Download, RotateCcw, ZoomIn, ZoomOut, FileText, Pencil } from "lucide-react";
+import {
+  Download,
+  RotateCcw,
+  ZoomIn,
+  ZoomOut,
+  FileText,
+  Pencil,
+} from "lucide-react";
 import { ColorPalette } from "./ColorPalette";
 import { generatePalettePdf } from "../lib/generatePalettePdf";
 import type { PbnResult } from "../hooks/usePbnWorker";
@@ -16,7 +23,7 @@ interface ResultViewProps {
 }
 
 function rgbToHex(r: number, g: number, b: number): string {
-  return "#" + [r, g, b].map((v) => v.toString(16).padStart(2, "0")).join("");
+  return "#" + [r, g, b].map(v => v.toString(16).padStart(2, "0")).join("");
 }
 
 export function ResultView({ result, onReset }: ResultViewProps) {
@@ -53,8 +60,7 @@ export function ResultView({ result, onReset }: ResultViewProps) {
       const parser = new DOMParser();
       const svgDoc = parser.parseFromString(result.svgText, "image/svg+xml");
       const svgEl = svgDoc.documentElement;
-      const width = parseInt(svgEl.getAttribute("width") || "1024");
-      const height = parseInt(svgEl.getAttribute("height") || "1024");
+      const { width, height } = getSvgPixelSize(svgEl);
 
       const canvas = document.createElement("canvas");
       canvas.width = width;
@@ -65,7 +71,9 @@ export function ResultView({ result, onReset }: ResultViewProps) {
       }
 
       const img = new Image();
-      const svgBlob = new Blob([result.svgText], { type: "image/svg+xml;charset=utf-8" });
+      const svgBlob = new Blob([result.svgText], {
+        type: "image/svg+xml;charset=utf-8",
+      });
       const url = URL.createObjectURL(svgBlob);
 
       await new Promise<void>((resolve, reject) => {
@@ -117,7 +125,7 @@ export function ResultView({ result, onReset }: ResultViewProps) {
       <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border pb-4">
         <div className="flex items-center gap-2">
           <button
-            onClick={() => setZoom((z) => Math.max(0.25, z - 0.25))}
+            onClick={() => setZoom(z => Math.max(0.25, z - 0.25))}
             className="p-2 border border-border hover:bg-muted/50 transition-colors active:scale-[0.97]"
             title="Zoom out"
           >
@@ -127,7 +135,7 @@ export function ResultView({ result, onReset }: ResultViewProps) {
             {Math.round(zoom * 100)}%
           </span>
           <button
-            onClick={() => setZoom((z) => Math.min(4, z + 0.25))}
+            onClick={() => setZoom(z => Math.min(4, z + 0.25))}
             className="p-2 border border-border hover:bg-muted/50 transition-colors active:scale-[0.97]"
             title="Zoom in"
           >
@@ -218,4 +226,19 @@ export function ResultView({ result, onReset }: ResultViewProps) {
       <ColorPalette colorsByIndex={result.colorsByIndex} />
     </div>
   );
+}
+
+function getSvgPixelSize(svgEl: Element) {
+  const viewBox = svgEl.getAttribute("viewBox");
+  if (viewBox) {
+    const [, , width, height] = viewBox.split(/\s+/).map(Number);
+    if (Number.isFinite(width) && Number.isFinite(height)) {
+      return { width, height };
+    }
+  }
+
+  return {
+    width: parseInt(svgEl.getAttribute("width") || "1024", 10),
+    height: parseInt(svgEl.getAttribute("height") || "1024", 10),
+  };
 }
