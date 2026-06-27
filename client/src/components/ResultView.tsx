@@ -1,6 +1,6 @@
 /**
  * client/src/components/ResultView.tsx
- * Design: Atelier Mono â SVG preview with download actions
+ * Design: Atelier Mono - SVG preview with download actions
  * Includes: filled SVG, outline SVG, PNG, palette JSON, palette PDF
  */
 
@@ -59,6 +59,10 @@ export function ResultView({ result, onReset }: ResultViewProps) {
       const canvas = document.createElement("canvas");
       canvas.width = width;
       canvas.height = height;
+      const ctx = canvas.getContext("2d");
+      if (!ctx) {
+        throw new Error("Could not create PNG canvas context");
+      }
 
       const img = new Image();
       const svgBlob = new Blob([result.svgText], { type: "image/svg+xml;charset=utf-8" });

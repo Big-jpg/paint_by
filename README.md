@@ -47,24 +47,40 @@ The current direction is to keep the project usable while reducing duplicate
 implementations, isolating the core paint-by-numbers engine, and improving the
 frontend experience.
 
+## Maintainer Notes
+
+The deployed web app is the Vite/React application under `client/src`.
+`client/src/lib/pbn-engine` is the engine copy used by the browser worker.
+
+The root-level legacy files (`index.html`, `index_v2.html`, `src`, `src-cli`,
+`styles`, and `scripts`) are retained for reference while the modern app is
+consolidated. Prefer changing the `client/src` app and worker-backed engine for
+end-user improvements unless a task explicitly targets the legacy UI or CLI.
+
 ## Development
 
 Install dependencies:
 
 ```bash
-npm install
+pnpm install
 ```
 
 Run locally:
 
 ```bash
-npm run dev
+pnpm dev
 ```
 
 Build:
 
 ```bash
-npm run build
+pnpm build
+```
+
+Typecheck:
+
+```bash
+pnpm check
 ```
 
 ## License
