@@ -9,6 +9,7 @@ import { ProcessingProgress } from "../components/ProcessingProgress";
 import { ResultView } from "../components/ResultView";
 import { SettingsPanel } from "../components/SettingsPanel";
 import { usePbnWorker, type PbnSettings } from "../hooks/usePbnWorker";
+import { imageFileToData } from "../lib/imageData";
 
 const LOGO_URL =
   "https://d2xsxph8kpxj0f.cloudfront.net/310519663056684383/hgP5jjpvxGXvGrobPfFbvS/pbn-logo-gZVHmbuQ3u4ghWCuDz7qhk.webp";
@@ -44,34 +45,16 @@ export default function Home() {
       if (status !== "idle") return;
       const items = e.clipboardData?.items;
       if (!items) return;
+
       for (let i = 0; i < items.length; i++) {
         const item = items[i];
         if (item.type.startsWith("image/")) {
           const file = item.getAsFile();
           if (file) {
-            const url = URL.createObjectURL(file);
-            const img = new Image();
-            img.onload = () => {
-              let w = img.width;
-              let h = img.height;
-              const maxDim = 1024;
-              if (w > maxDim || h > maxDim) {
-                const ratio = Math.min(maxDim / w, maxDim / h);
-                w = Math.round(w * ratio);
-                h = Math.round(h * ratio);
-              }
-              const canvas = document.createElement("canvas");
-              canvas.width = w;
-              canvas.height = h;
-              const ctx = canvas.getContext("2d")!;
-              ctx.drawImage(img, 0, 0, w, h);
-              const imageData = ctx.getImageData(0, 0, w, h);
-              const preview = canvas.toDataURL("image/png");
-              setPreviewUrl(preview);
+            void imageFileToData(file).then(({ imageData, previewUrl }) => {
+              setPreviewUrl(previewUrl);
               process(imageData, settings);
-              URL.revokeObjectURL(url);
-            };
-            img.src = url;
+            });
           }
           break;
         }

@@ -5,6 +5,7 @@
 
 import { useCallback, useRef, useState } from "react";
 import { Upload, ClipboardPaste } from "lucide-react";
+import { imageFileToData } from "../lib/imageData";
 
 interface ImageUploaderProps {
   onImageReady: (imageData: ImageData, previewUrl: string) => void;
@@ -21,34 +22,13 @@ export function ImageUploader({
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const processFile = useCallback(
-    (file: File) => {
-      if (!file.type.startsWith("image/")) return;
-
-      const url = URL.createObjectURL(file);
-      const img = new Image();
-      img.onload = () => {
-        // Resize if needed
-        let w = img.width;
-        let h = img.height;
-        if (w > maxWidth || h > maxHeight) {
-          const ratio = Math.min(maxWidth / w, maxHeight / h);
-          w = Math.round(w * ratio);
-          h = Math.round(h * ratio);
-        }
-
-        const canvas = document.createElement("canvas");
-        canvas.width = w;
-        canvas.height = h;
-        const ctx = canvas.getContext("2d")!;
-        ctx.drawImage(img, 0, 0, w, h);
-        const imageData = ctx.getImageData(0, 0, w, h);
-
-        // Create preview URL from resized canvas
-        const previewUrl = canvas.toDataURL("image/png");
-        onImageReady(imageData, previewUrl);
-        URL.revokeObjectURL(url);
-      };
-      img.src = url;
+    async (file: File) => {
+      const { imageData, previewUrl } = await imageFileToData(
+        file,
+        maxWidth,
+        maxHeight
+      );
+      onImageReady(imageData, previewUrl);
     },
     [onImageReady, maxWidth, maxHeight]
   );
@@ -58,7 +38,7 @@ export function ImageUploader({
       e.preventDefault();
       setIsDragging(false);
       const file = e.dataTransfer.files[0];
-      if (file) processFile(file);
+      if (file) void processFile(file);
     },
     [processFile]
   );
@@ -70,7 +50,7 @@ export function ImageUploader({
         const item = items[i];
         if (item.type.startsWith("image/")) {
           const file = item.getAsFile();
-          if (file) processFile(file);
+          if (file) void processFile(file);
           break;
         }
       }
@@ -81,7 +61,7 @@ export function ImageUploader({
   const handleFileChange = useCallback(
     (e: React.ChangeEvent<HTMLInputElement>) => {
       const file = e.target.files?.[0];
-      if (file) processFile(file);
+      if (file) void processFile(file);
     },
     [processFile]
   );
