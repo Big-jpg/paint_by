@@ -6,31 +6,34 @@
 import { useCallback, useRef, useState } from "react";
 import { Upload, ClipboardPaste } from "lucide-react";
 import { imageFileToData } from "../lib/imageData";
+import type { ImagePrepOptions } from "../lib/imageData";
 
 interface ImageUploaderProps {
   onImageReady: (imageData: ImageData, previewUrl: string) => void;
   maxWidth?: number;
   maxHeight?: number;
+  prepOptions?: ImagePrepOptions;
 }
 
 export function ImageUploader({
   onImageReady,
   maxWidth = 1024,
   maxHeight = 1024,
+  prepOptions,
 }: ImageUploaderProps) {
   const [isDragging, setIsDragging] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const processFile = useCallback(
     async (file: File) => {
-      const { imageData, previewUrl } = await imageFileToData(
-        file,
+      const { imageData, previewUrl } = await imageFileToData(file, {
+        ...prepOptions,
         maxWidth,
-        maxHeight
-      );
+        maxHeight,
+      });
       onImageReady(imageData, previewUrl);
     },
-    [onImageReady, maxWidth, maxHeight]
+    [onImageReady, maxWidth, maxHeight, prepOptions]
   );
 
   const handleDrop = useCallback(
@@ -70,13 +73,14 @@ export function ImageUploader({
     <div
       className={`
         relative w-full border transition-all duration-200 cursor-pointer
-        ${isDragging
-          ? "border-ochre border-dashed bg-ochre/5"
-          : "border-border border-dashed hover:border-ochre/50 hover:bg-muted/30"
+        ${
+          isDragging
+            ? "border-ochre border-dashed bg-ochre/5"
+            : "border-border border-dashed hover:border-ochre/50 hover:bg-muted/30"
         }
       `}
       style={{ minHeight: "280px" }}
-      onDragOver={(e) => {
+      onDragOver={e => {
         e.preventDefault();
         setIsDragging(true);
       }}
@@ -85,7 +89,7 @@ export function ImageUploader({
       onPaste={handlePaste}
       onClick={() => fileInputRef.current?.click()}
       tabIndex={0}
-      onKeyDown={(e) => {
+      onKeyDown={e => {
         if (e.key === "Enter" || e.key === " ") {
           fileInputRef.current?.click();
         }
@@ -119,7 +123,7 @@ export function ImageUploader({
           <button
             type="button"
             className="px-4 py-2 text-sm font-mono border border-border hover:border-foreground/30 transition-all active:scale-[0.97]"
-            onClick={(e) => {
+            onClick={e => {
               e.stopPropagation();
               fileInputRef.current?.click();
             }}
