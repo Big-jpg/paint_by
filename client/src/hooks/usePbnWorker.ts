@@ -6,6 +6,13 @@
 import { useCallback, useRef, useState } from "react";
 import type { EngineProgress } from "../lib/pbn-engine/engine/types";
 import type {
+  ImageTreatment,
+  PageOrientation,
+  PaletteSize,
+  PaperSize,
+} from "../lib/presets";
+import { getPageSizeMm } from "../lib/presets";
+import type {
   WorkerDoneMessage,
   WorkerErrorMessage,
   WorkerOutMessage,
@@ -15,9 +22,10 @@ import type {
 export type PbnStatus = "idle" | "processing" | "done" | "error";
 
 export interface PbnSettings {
-  kMeansNrOfClusters: number;
-  removeFacetsSmallerThanNrOfPoints: number;
-  sizeMultiplier: number;
+  imageTreatment: ImageTreatment;
+  paletteSize: PaletteSize;
+  paperSize: PaperSize;
+  orientation: PageOrientation;
 }
 
 export interface PbnResult {
@@ -27,9 +35,10 @@ export interface PbnResult {
 }
 
 const DEFAULT_SETTINGS: PbnSettings = {
-  kMeansNrOfClusters: 16,
-  removeFacetsSmallerThanNrOfPoints: 20,
-  sizeMultiplier: 3,
+  imageTreatment: "color",
+  paletteSize: 14,
+  paperSize: "A4",
+  orientation: "landscape",
 };
 
 // Step weights for overall progress calculation
@@ -88,7 +97,11 @@ export function usePbnWorker() {
           }
           case "done": {
             const d = msg as WorkerDoneMessage;
-            setResult({ svgText: d.svgText, outlineSvgText: d.outlineSvgText, colorsByIndex: d.colorsByIndex });
+            setResult({
+              svgText: d.svgText,
+              outlineSvgText: d.outlineSvgText,
+              colorsByIndex: d.colorsByIndex,
+            });
             setStatus("done");
             setOverallProgress(1);
             worker.terminate();
@@ -106,7 +119,7 @@ export function usePbnWorker() {
         }
       };
 
-      worker.onerror = (e) => {
+      worker.onerror = e => {
         setError(e.message || "Worker error");
         setStatus("error");
         worker.terminate();
@@ -114,13 +127,16 @@ export function usePbnWorker() {
       };
 
       // Send start message
+      const pageSize = getPageSizeMm(settings.paperSize, settings.orientation);
       worker.postMessage({
         type: "start",
         imageData,
         settings: {
-          kMeansNrOfClusters: settings.kMeansNrOfClusters,
-          removeFacetsSmallerThanNrOfPoints: settings.removeFacetsSmallerThanNrOfPoints,
-          sizeMultiplier: settings.sizeMultiplier,
+          kMeansNrOfClusters: settings.paletteSize,
+          removeFacetsSmallerThanNrOfPoints: 20,
+          sizeMultiplier: 3,
+          outputWidthMm: pageSize.widthMm,
+          outputHeightMm: pageSize.heightMm,
         },
       });
     },

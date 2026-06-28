@@ -6,7 +6,10 @@
 
 import { runEngine, generateSVGWithOptions } from "../lib/pbn-engine/engine";
 import { Settings } from "../lib/pbn-engine/settings";
-import type { EngineInput, EngineProgress } from "../lib/pbn-engine/engine/types";
+import type {
+  EngineInput,
+  EngineProgress,
+} from "../lib/pbn-engine/engine/types";
 
 export interface WorkerStartMessage {
   type: "start";
@@ -15,6 +18,8 @@ export interface WorkerStartMessage {
     kMeansNrOfClusters: number;
     removeFacetsSmallerThanNrOfPoints: number;
     sizeMultiplier: number;
+    outputWidthMm: number;
+    outputHeightMm: number;
   };
 }
 
@@ -41,7 +46,10 @@ export interface WorkerErrorMessage {
   error: string;
 }
 
-export type WorkerOutMessage = WorkerProgressMessage | WorkerDoneMessage | WorkerErrorMessage;
+export type WorkerOutMessage =
+  | WorkerProgressMessage
+  | WorkerDoneMessage
+  | WorkerErrorMessage;
 
 let currentAbortController: AbortController | null = null;
 
@@ -68,8 +76,11 @@ async function handleStart(message: WorkerStartMessage) {
   try {
     const settings = new Settings();
     settings.kMeansNrOfClusters = message.settings.kMeansNrOfClusters;
-    settings.removeFacetsSmallerThanNrOfPoints = message.settings.removeFacetsSmallerThanNrOfPoints;
+    settings.removeFacetsSmallerThanNrOfPoints =
+      message.settings.removeFacetsSmallerThanNrOfPoints;
     settings.sizeMultiplier = message.settings.sizeMultiplier;
+    settings.outputWidthMm = message.settings.outputWidthMm;
+    settings.outputHeightMm = message.settings.outputHeightMm;
 
     const input: EngineInput = {
       imageData: message.imageData,
@@ -92,6 +103,8 @@ async function handleStart(message: WorkerStartMessage) {
       result.colorsByIndex,
       {
         sizeMultiplier: settings.sizeMultiplier,
+        outputWidthMm: settings.outputWidthMm,
+        outputHeightMm: settings.outputHeightMm,
         fill: false,
         stroke: true,
         addColorLabels: true,
