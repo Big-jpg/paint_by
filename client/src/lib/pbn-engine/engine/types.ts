@@ -18,15 +18,27 @@ export type EngineStep =
   | "borderTrace"
   | "borderSegment"
   | "labelPlace"
-  | "svg";
+  | "svg"
+  | "outlineSvg";
+
+export type EnginePhase = "prepare" | "regions" | "export";
+
+export type EngineProgressStats = {
+  initialFacetCount?: number;
+  currentFacetCount?: number;
+  removedFacetCount?: number;
+};
 
 /**
  * Progress information emitted during engine processing
  */
 export type EngineProgress = {
   step: EngineStep;
-  pct: number;           // 0..1
+  pct: number; // 0..1
+  phase?: EnginePhase;
+  activity?: string;
   message?: string;
+  stats?: EngineProgressStats;
 };
 
 /**

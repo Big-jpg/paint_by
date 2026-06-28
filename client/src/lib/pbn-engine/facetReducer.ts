@@ -3,14 +3,26 @@ import { delay, IMap, RGB } from "./common";
 import { FacetCreator } from "./facetCreator";
 import { Facet, FacetResult } from "./facetmanagement";
 import { BooleanArray2D, Uint8Array2D } from "./structs/typedarrays";
+import type { EngineProgressStats } from "./engine/types";
 
 export class FacetReducer {
 
     /**
      *  Remove all facets that have a pointCount smaller than the given number.
      */
-    public static async reduceFacets(smallerThan: number, removeFacetsFromLargeToSmall: boolean, maximumNumberOfFacets: number, colorsByIndex: RGB[], facetResult: FacetResult, imgColorIndices: Uint8Array2D, onUpdate: ((progress: number) => void) | null = null) {
+    public static async reduceFacets(smallerThan: number, removeFacetsFromLargeToSmall: boolean, maximumNumberOfFacets: number, colorsByIndex: RGB[], facetResult: FacetResult, imgColorIndices: Uint8Array2D, onUpdate: ((progress: number, stats?: EngineProgressStats) => void) | null = null) {
         const visitedCache = new BooleanArray2D(facetResult.width, facetResult.height);
+        const initialFacetCount = FacetReducer.countFacets(facetResult);
+        const emitUpdate = (progress: number) => {
+            if (onUpdate != null) {
+                const currentFacetCount = FacetReducer.countFacets(facetResult);
+                onUpdate(progress, {
+                    initialFacetCount,
+                    currentFacetCount,
+                    removedFacetCount: Math.max(0, initialFacetCount - currentFacetCount),
+                });
+            }
+        };
 
         // build the color distance matrix, which describes the distance of each color to each other
         const colorDistances: number[][] = ColorReducer.buildColorDistanceMatrix(colorsByIndex);
@@ -35,9 +47,7 @@ export class FacetReducer {
                 if (new Date().getTime() - curTime > 500) {
                     curTime = new Date().getTime();
                     await delay(0);
-                    if (onUpdate != null) {
-                        onUpdate(0.5 * fidx / facetProcessingOrder.length);
-                    }
+                    emitUpdate(0.5 * fidx / facetProcessingOrder.length);
                 }
             }
 
@@ -66,16 +76,16 @@ export class FacetReducer {
             if (new Date().getTime() - curTime > 500) {
                 curTime = new Date().getTime();
                 await delay(0);
-                if (onUpdate != null) {
-                    onUpdate(0.5 + 0.5 - (facetCount - maximumNumberOfFacets) / (startFacetCount - maximumNumberOfFacets));
-                }
+                emitUpdate(0.5 + 0.5 - (facetCount - maximumNumberOfFacets) / (startFacetCount - maximumNumberOfFacets));
             }
         }
         // this.trimFacets(facetResult, imgColorIndices, colorDistances, visitedCache);
 
-        if (onUpdate != null) {
-            onUpdate(1);
-        }
+        emitUpdate(1);
+    }
+
+    private static countFacets(facetResult: FacetResult) {
+        return facetResult.facets.filter(f => f != null).length;
     }
 
     // /**

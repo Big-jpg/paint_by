@@ -19,6 +19,8 @@ export default function Home() {
     status,
     progress,
     overallProgress,
+    elapsedMs,
+    isQuiet,
     result,
     error,
     process,
@@ -131,6 +133,8 @@ export default function Home() {
               <ProcessingProgress
                 progress={progress}
                 overallProgress={overallProgress}
+                elapsedMs={elapsedMs}
+                isQuiet={isQuiet}
                 onCancel={() => {
                   cancel();
                   setPreviewUrl(null);

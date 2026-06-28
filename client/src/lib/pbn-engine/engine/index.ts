@@ -5,4 +5,4 @@
 
 export * from "./types";
 export * from "./abort";
-export { runEngine, generateSVGWithOptions } from "./run";
+export { runEngine, generateSVGWithOptions, getPhaseForStep } from "./run";

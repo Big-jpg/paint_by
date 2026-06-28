@@ -4,7 +4,11 @@
  * Generates both filled SVG and outline-only SVG
  */
 
-import { runEngine, generateSVGWithOptions } from "../lib/pbn-engine/engine";
+import {
+  runEngine,
+  generateSVGWithOptions,
+  getPhaseForStep,
+} from "../lib/pbn-engine/engine";
 import { Settings } from "../lib/pbn-engine/settings";
 import type {
   EngineInput,
@@ -98,6 +102,13 @@ async function handleStart(message: WorkerStartMessage) {
     const result = await runEngine(input);
 
     // Generate outline-only SVG (no fill, borders + labels only)
+    postProgress({
+      step: "outlineSvg",
+      pct: 0,
+      phase: getPhaseForStep("outlineSvg"),
+      activity: "Preparing printable outline",
+      message: "Generating outline SVG",
+    });
     const outlineSvgText = await generateSVGWithOptions(
       result.facetResult,
       result.colorsByIndex,
@@ -110,8 +121,24 @@ async function handleStart(message: WorkerStartMessage) {
         addColorLabels: true,
         fontSize: 50,
         fontColor: "black",
+      },
+      pct => {
+        postProgress({
+          step: "outlineSvg",
+          pct,
+          phase: getPhaseForStep("outlineSvg"),
+          activity: "Preparing printable outline",
+          message: "Generating outline SVG",
+        });
       }
     );
+    postProgress({
+      step: "outlineSvg",
+      pct: 1,
+      phase: getPhaseForStep("outlineSvg"),
+      activity: "Printable files ready",
+      message: "Outline SVG complete",
+    });
 
     const outMessage: WorkerDoneMessage = {
       type: "done",
@@ -133,6 +160,14 @@ async function handleStart(message: WorkerStartMessage) {
   } finally {
     currentAbortController = null;
   }
+}
+
+function postProgress(progress: EngineProgress) {
+  const outMessage: WorkerProgressMessage = {
+    type: "progress",
+    progress,
+  };
+  self.postMessage(outMessage);
 }
 
 function handleCancel() {

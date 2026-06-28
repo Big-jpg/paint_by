@@ -3,7 +3,14 @@
  * Core engine orchestrator - processes images without DOM dependencies
  */
 
-import { EngineInput, EngineResult, EngineProgress, EngineStep } from "./types";
+import {
+  EngineInput,
+  EnginePhase,
+  EngineProgress,
+  EngineProgressStats,
+  EngineResult,
+  EngineStep,
+} from "./types";
 import { throwIfAborted } from "./abort";
 
 import { ColorReducer, ColorMapResult } from "../colorreductionmanagement";
@@ -23,13 +30,26 @@ import { Point } from "../structs/point";
 export async function runEngine(input: EngineInput): Promise<EngineResult> {
   const { imageData, settings, signal, onProgress } = input;
 
-  const progress = (step: EngineStep, pct: number, message?: string) =>
-    onProgress?.({ step, pct, message });
+  const progress = (
+    step: EngineStep,
+    pct: number,
+    activity: string,
+    message?: string,
+    stats?: EngineProgressStats
+  ) =>
+    onProgress?.({
+      step,
+      pct,
+      phase: getPhaseForStep(step),
+      activity,
+      message,
+      stats,
+    });
 
   throwIfAborted(signal);
 
   // 1) K-means clustering → returns quantized ImageData
-  progress("kmeans", 0, "Starting k-means");
+  progress("kmeans", 0, "Reading image colours", "Starting k-means");
   const kmeansImgData = cloneImageData(imageData);
 
   await ColorReducer.applyKMeansClustering(
@@ -48,20 +68,21 @@ export async function runEngine(input: EngineInput): Promise<EngineResult> {
       progress(
         "kmeans",
         pct,
+        "Grouping similar colours",
         `K-means iteration, delta: ${kmeans.currentDeltaDistanceDifference.toFixed(2)}`
       );
       throwIfAborted(signal);
     }
   );
-  progress("kmeans", 1, "K-means complete");
+  progress("kmeans", 1, "Image colours prepared", "K-means complete");
 
   throwIfAborted(signal);
 
   // 2) Color map build
-  progress("colormap", 0, "Building color map");
+  progress("colormap", 0, "Indexing reduced colours", "Building color map");
   let colormapResult: ColorMapResult =
     ColorReducer.createColorMap(kmeansImgData);
-  progress("colormap", 1, "Color map complete");
+  progress("colormap", 1, "Colour index ready", "Color map complete");
 
   throwIfAborted(signal);
 
@@ -70,22 +91,22 @@ export async function runEngine(input: EngineInput): Promise<EngineResult> {
 
   if (settings.narrowPixelStripCleanupRuns === 0) {
     // facet building
-    progress("facetBuild", 0, "Building facets");
+    progress("facetBuild", 0, "Finding numbered regions", "Building facets");
     facetResult = await FacetCreator.getFacets(
       colormapResult.width,
       colormapResult.height,
       colormapResult.imgColorIndices,
       pct => {
         throwIfAborted(signal);
-        progress("facetBuild", pct, "Building facets");
+        progress("facetBuild", pct, "Finding numbered regions", "Building facets");
       }
     );
-    progress("facetBuild", 1, "Facet build complete");
+    progress("facetBuild", 1, "Regions found", "Facet build complete");
 
     throwIfAborted(signal);
 
     // facet reduction
-    progress("facetReduce", 0, "Reducing facets");
+    progress("facetReduce", 0, "Merging small regions", "Reducing facets");
     await FacetReducer.reduceFacets(
       settings.removeFacetsSmallerThanNrOfPoints,
       settings.removeFacetsFromLargeToSmall,
@@ -93,12 +114,12 @@ export async function runEngine(input: EngineInput): Promise<EngineResult> {
       colormapResult.colorsByIndex,
       facetResult,
       colormapResult.imgColorIndices,
-      pct => {
+      (pct, stats) => {
         throwIfAborted(signal);
-        progress("facetReduce", pct, "Reducing facets");
+        progress("facetReduce", pct, "Merging small regions", "Reducing facets", stats);
       }
     );
-    progress("facetReduce", 1, "Facet reduction complete");
+    progress("facetReduce", 1, "Regions simplified", "Facet reduction complete");
   } else {
     for (let run = 0; run < settings.narrowPixelStripCleanupRuns; run++) {
       throwIfAborted(signal);
@@ -111,6 +132,7 @@ export async function runEngine(input: EngineInput): Promise<EngineResult> {
       progress(
         "facetBuild",
         buildProgress,
+        "Cleaning narrow details",
         `Building facets (run ${run + 1}/${settings.narrowPixelStripCleanupRuns})`
       );
 
@@ -124,6 +146,7 @@ export async function runEngine(input: EngineInput): Promise<EngineResult> {
           progress(
             "facetBuild",
             overallPct * 0.5,
+            "Finding numbered regions",
             `Building facets (run ${run + 1})`
           );
         }
@@ -133,6 +156,7 @@ export async function runEngine(input: EngineInput): Promise<EngineResult> {
       progress(
         "facetReduce",
         buildProgress,
+        "Merging small regions",
         `Reducing facets (run ${run + 1}/${settings.narrowPixelStripCleanupRuns})`
       );
 
@@ -143,60 +167,62 @@ export async function runEngine(input: EngineInput): Promise<EngineResult> {
         colormapResult.colorsByIndex,
         facetResult,
         colormapResult.imgColorIndices,
-        pct => {
+        (pct, stats) => {
           throwIfAborted(signal);
           const overallPct =
             (run + 0.5 + pct * 0.5) / settings.narrowPixelStripCleanupRuns;
           progress(
             "facetReduce",
             overallPct,
-            `Reducing facets (run ${run + 1})`
+            "Merging small regions",
+            `Reducing facets (run ${run + 1})`,
+            stats
           );
         }
       );
     }
-    progress("facetBuild", 1, "Facet build complete");
-    progress("facetReduce", 1, "Facet reduction complete");
+    progress("facetBuild", 1, "Regions found", "Facet build complete");
+    progress("facetReduce", 1, "Regions simplified", "Facet reduction complete");
   }
 
   throwIfAborted(signal);
 
   // 4) Border tracing
-  progress("borderTrace", 0, "Tracing borders");
+  progress("borderTrace", 0, "Tracing region edges", "Tracing borders");
   await FacetBorderTracer.buildFacetBorderPaths(facetResult, pct => {
     throwIfAborted(signal);
-    progress("borderTrace", pct, "Tracing borders");
+    progress("borderTrace", pct, "Tracing region edges", "Tracing borders");
   });
-  progress("borderTrace", 1, "Border tracing complete");
+  progress("borderTrace", 1, "Region edges traced", "Border tracing complete");
 
   throwIfAborted(signal);
 
   // 5) Border segmentation
-  progress("borderSegment", 0, "Segmenting borders");
+  progress("borderSegment", 0, "Smoothing outlines", "Segmenting borders");
   await FacetBorderSegmenter.buildFacetBorderSegments(
     facetResult,
     settings.nrOfTimesToHalveBorderSegments,
     pct => {
       throwIfAborted(signal);
-      progress("borderSegment", pct, "Segmenting borders");
+      progress("borderSegment", pct, "Smoothing outlines", "Segmenting borders");
     }
   );
-  progress("borderSegment", 1, "Border segmentation complete");
+  progress("borderSegment", 1, "Outlines smoothed", "Border segmentation complete");
 
   throwIfAborted(signal);
 
   // 6) Label placement
-  progress("labelPlace", 0, "Placing labels");
+  progress("labelPlace", 0, "Placing paint numbers", "Placing labels");
   await FacetLabelPlacer.buildFacetLabelBounds(facetResult, pct => {
     throwIfAborted(signal);
-    progress("labelPlace", pct, "Placing labels");
+    progress("labelPlace", pct, "Placing paint numbers", "Placing labels");
   });
-  progress("labelPlace", 1, "Label placement complete");
+  progress("labelPlace", 1, "Paint numbers placed", "Label placement complete");
 
   throwIfAborted(signal);
 
   // 7) Generate SVG text (DOM-free)
-  progress("svg", 0, "Generating SVG");
+  progress("svg", 0, "Drawing printable artwork", "Generating SVG");
   const svgText = await generateSVGText(
     facetResult,
     colormapResult.colorsByIndex,
@@ -211,10 +237,10 @@ export async function runEngine(input: EngineInput): Promise<EngineResult> {
     "black", // fontColor
     pct => {
       throwIfAborted(signal);
-      progress("svg", pct, "Generating SVG");
+      progress("svg", pct, "Drawing printable artwork", "Generating SVG");
     }
   );
-  progress("svg", 1, "SVG generation complete");
+  progress("svg", 1, "Printable artwork drawn", "SVG generation complete");
 
   // Build preview ImageData snapshots
   const previews: EngineResult["previews"] = {
@@ -228,6 +254,18 @@ export async function runEngine(input: EngineInput): Promise<EngineResult> {
     svgText,
     previews,
   };
+}
+
+export function getPhaseForStep(step: EngineStep): EnginePhase {
+  if (step === "kmeans" || step === "colormap") {
+    return "prepare";
+  }
+
+  if (step === "svg" || step === "outlineSvg") {
+    return "export";
+  }
+
+  return "regions";
 }
 
 /**

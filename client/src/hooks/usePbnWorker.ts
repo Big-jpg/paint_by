@@ -3,7 +3,7 @@
  * React hook for managing the PBN Web Worker lifecycle
  */
 
-import { useCallback, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import type { EngineProgress } from "../lib/pbn-engine/engine/types";
 import type {
   ImageTreatment,
@@ -43,15 +43,18 @@ const DEFAULT_SETTINGS: PbnSettings = {
 
 // Step weights for overall progress calculation
 const STEP_WEIGHTS: Record<string, { start: number; weight: number }> = {
-  kmeans: { start: 0, weight: 0.35 },
-  colormap: { start: 0.35, weight: 0.02 },
-  facetBuild: { start: 0.37, weight: 0.2 },
-  facetReduce: { start: 0.57, weight: 0.15 },
-  borderTrace: { start: 0.72, weight: 0.1 },
-  borderSegment: { start: 0.82, weight: 0.08 },
-  labelPlace: { start: 0.9, weight: 0.05 },
-  svg: { start: 0.95, weight: 0.05 },
+  kmeans: { start: 0, weight: 0.2 },
+  colormap: { start: 0.2, weight: 0.03 },
+  facetBuild: { start: 0.23, weight: 0.2 },
+  facetReduce: { start: 0.43, weight: 0.34 },
+  borderTrace: { start: 0.77, weight: 0.08 },
+  borderSegment: { start: 0.85, weight: 0.05 },
+  labelPlace: { start: 0.9, weight: 0.04 },
+  svg: { start: 0.94, weight: 0.04 },
+  outlineSvg: { start: 0.98, weight: 0.02 },
 };
+
+const QUIET_THRESHOLD_MS = 3500;
 
 export function usePbnWorker() {
   const workerRef = useRef<Worker | null>(null);
@@ -60,6 +63,26 @@ export function usePbnWorker() {
   const [overallProgress, setOverallProgress] = useState(0);
   const [result, setResult] = useState<PbnResult | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [startedAt, setStartedAt] = useState<number | null>(null);
+  const [lastProgressAt, setLastProgressAt] = useState<number | null>(null);
+  const [now, setNow] = useState(Date.now());
+
+  useEffect(() => {
+    if (status !== "processing") return;
+
+    const interval = window.setInterval(() => {
+      setNow(Date.now());
+    }, 1000);
+
+    return () => window.clearInterval(interval);
+  }, [status]);
+
+  const elapsedMs =
+    status === "processing" && startedAt != null ? now - startedAt : 0;
+  const isQuiet =
+    status === "processing" &&
+    lastProgressAt != null &&
+    now - lastProgressAt > QUIET_THRESHOLD_MS;
 
   const process = useCallback(
     (imageData: ImageData, settings: PbnSettings = DEFAULT_SETTINGS) => {
@@ -73,6 +96,10 @@ export function usePbnWorker() {
       setOverallProgress(0);
       setResult(null);
       setError(null);
+      const started = Date.now();
+      setStartedAt(started);
+      setLastProgressAt(started);
+      setNow(started);
 
       const worker = new Worker(
         new URL("../workers/pbn.worker.ts", import.meta.url),
@@ -86,7 +113,10 @@ export function usePbnWorker() {
         switch (msg.type) {
           case "progress": {
             const p = (msg as WorkerProgressMessage).progress;
+            const receivedAt = Date.now();
             setProgress(p);
+            setLastProgressAt(receivedAt);
+            setNow(receivedAt);
             // Calculate overall progress
             const stepInfo = STEP_WEIGHTS[p.step];
             if (stepInfo) {
@@ -104,6 +134,8 @@ export function usePbnWorker() {
             });
             setStatus("done");
             setOverallProgress(1);
+            setStartedAt(null);
+            setLastProgressAt(null);
             worker.terminate();
             workerRef.current = null;
             break;
@@ -112,6 +144,8 @@ export function usePbnWorker() {
             const e = msg as WorkerErrorMessage;
             setError(e.error);
             setStatus("error");
+            setStartedAt(null);
+            setLastProgressAt(null);
             worker.terminate();
             workerRef.current = null;
             break;
@@ -122,6 +156,8 @@ export function usePbnWorker() {
       worker.onerror = e => {
         setError(e.message || "Worker error");
         setStatus("error");
+        setStartedAt(null);
+        setLastProgressAt(null);
         worker.terminate();
         workerRef.current = null;
       };
@@ -152,6 +188,8 @@ export function usePbnWorker() {
     setStatus("idle");
     setProgress(null);
     setOverallProgress(0);
+    setStartedAt(null);
+    setLastProgressAt(null);
   }, []);
 
   const reset = useCallback(() => {
@@ -166,6 +204,8 @@ export function usePbnWorker() {
     overallProgress,
     result,
     error,
+    elapsedMs,
+    isQuiet,
     process,
     cancel,
     reset,
