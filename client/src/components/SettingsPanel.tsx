@@ -16,7 +16,6 @@ import type { PbnSettings } from "../hooks/usePbnWorker";
 import {
   PAGE_ORIENTATIONS,
   PALETTE_SIZES,
-  PAPER_SIZES,
   TREATMENT_LABELS,
   TREATMENT_PALETTES,
   type ImageTreatment,
@@ -132,24 +131,7 @@ export function SettingsPanel({
               icon={<Ruler className="w-4 h-4" />}
               title="Print format"
             />
-            <div className="grid gap-3 lg:grid-cols-[1fr_auto]">
-              <div className="grid grid-cols-1 gap-2 lg:w-24">
-                {PAPER_SIZES.map(size => (
-                  <button
-                    key={size}
-                    type="button"
-                    disabled={disabled}
-                    onClick={() => onChange({ ...settings, paperSize: size })}
-                    className={`border px-3 py-2 font-mono text-xs transition-all active:scale-[0.98] ${
-                      settings.paperSize === size
-                        ? "border-foreground bg-foreground text-background"
-                        : "border-border hover:border-foreground/30"
-                    }`}
-                  >
-                    {size}
-                  </button>
-                ))}
-              </div>
+            <div className="grid gap-3">
               <div className="grid grid-cols-2 gap-2 lg:w-56">
                 {PAGE_ORIENTATIONS.map(orientation => (
                   <button
