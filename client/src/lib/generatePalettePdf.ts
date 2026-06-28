@@ -13,7 +13,7 @@ function luminance(r: number, g: number, b: number): number {
   return (0.299 * r + 0.587 * g + 0.114 * b) / 255;
 }
 
-export function generatePalettePdf(colorsByIndex: number[][]): void {
+export function createPalettePdfBlob(colorsByIndex: number[][]): Blob {
   const doc = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4" });
 
   const pageWidth = 210;
@@ -84,5 +84,15 @@ export function generatePalettePdf(colorsByIndex: number[][]): void {
     }
   });
 
-  doc.save("pbn-palette.pdf");
+  return doc.output("blob");
+}
+
+export function generatePalettePdf(colorsByIndex: number[][]): void {
+  const blob = createPalettePdfBlob(colorsByIndex);
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = "pbn-palette.pdf";
+  a.click();
+  URL.revokeObjectURL(url);
 }

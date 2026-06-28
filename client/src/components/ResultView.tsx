@@ -8,13 +8,12 @@ import { useCallback, useRef, useState } from "react";
 import {
   Download,
   RotateCcw,
-  ZoomIn,
-  ZoomOut,
-  FileText,
   Pencil,
+  Package,
 } from "lucide-react";
 import { ColorPalette } from "./ColorPalette";
-import { generatePalettePdf } from "../lib/generatePalettePdf";
+import { createZipBlob } from "../lib/createZip";
+import { createPalettePdfBlob } from "../lib/generatePalettePdf";
 import type { PbnResult } from "../hooks/usePbnWorker";
 
 interface ResultViewProps {
@@ -27,122 +26,58 @@ function rgbToHex(r: number, g: number, b: number): string {
 }
 
 export function ResultView({ result, onReset }: ResultViewProps) {
-  const [zoom, setZoom] = useState(1);
-  const [isPngGenerating, setIsPngGenerating] = useState(false);
+  const [isZipGenerating, setIsZipGenerating] = useState(false);
   const [showOutline, setShowOutline] = useState(false);
   const svgContainerRef = useRef<HTMLDivElement>(null);
 
   const activeSvg = showOutline ? result.outlineSvgText : result.svgText;
 
-  const downloadSvg = useCallback(() => {
-    const blob = new Blob([result.svgText], { type: "image/svg+xml" });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = "paint-by-numbers.svg";
-    a.click();
-    URL.revokeObjectURL(url);
-  }, [result.svgText]);
-
-  const downloadOutlineSvg = useCallback(() => {
-    const blob = new Blob([result.outlineSvgText], { type: "image/svg+xml" });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = "paint-by-numbers-outline.svg";
-    a.click();
-    URL.revokeObjectURL(url);
-  }, [result.outlineSvgText]);
-
-  const downloadPng = useCallback(async () => {
-    setIsPngGenerating(true);
+  const downloadZip = useCallback(async () => {
+    setIsZipGenerating(true);
     try {
-      const parser = new DOMParser();
-      const svgDoc = parser.parseFromString(result.svgText, "image/svg+xml");
-      const svgEl = svgDoc.documentElement;
-      const { width, height } = getSvgPixelSize(svgEl);
-
-      const canvas = document.createElement("canvas");
-      canvas.width = width;
-      canvas.height = height;
-      const ctx = canvas.getContext("2d");
-      if (!ctx) {
-        throw new Error("Could not create PNG canvas context");
-      }
-
-      const img = new Image();
-      const svgBlob = new Blob([result.svgText], {
-        type: "image/svg+xml;charset=utf-8",
-      });
-      const url = URL.createObjectURL(svgBlob);
-
-      await new Promise<void>((resolve, reject) => {
-        img.onload = () => {
-          ctx.fillStyle = "#ffffff";
-          ctx.fillRect(0, 0, width, height);
-          ctx.drawImage(img, 0, 0);
-          resolve();
-        };
-        img.onerror = reject;
-        img.src = url;
-      });
-
-      URL.revokeObjectURL(url);
-
-      const pngUrl = canvas.toDataURL("image/png");
+      const paletteJson = createPaletteJson(result.colorsByIndex);
+      const zipBlob = await createZipBlob([
+        {
+          name: "paint-by-numbers.svg",
+          blob: new Blob([result.svgText], {
+            type: "image/svg+xml;charset=utf-8",
+          }),
+        },
+        {
+          name: "paint-by-numbers-outline.svg",
+          blob: new Blob([result.outlineSvgText], {
+            type: "image/svg+xml;charset=utf-8",
+          }),
+        },
+        {
+          name: "paint-by-numbers.png",
+          blob: await createPngBlob(result.svgText),
+        },
+        {
+          name: "pbn-palette.pdf",
+          blob: createPalettePdfBlob(result.colorsByIndex),
+        },
+        {
+          name: "palette.json",
+          blob: new Blob([paletteJson], { type: "application/json" }),
+        },
+      ]);
+      const zipUrl = URL.createObjectURL(zipBlob);
       const a = document.createElement("a");
-      a.href = pngUrl;
-      a.download = "paint-by-numbers.png";
+      a.href = zipUrl;
+      a.download = "paint-by-numbers-output.zip";
       a.click();
+      URL.revokeObjectURL(zipUrl);
     } finally {
-      setIsPngGenerating(false);
+      setIsZipGenerating(false);
     }
-  }, [result.svgText]);
-
-  const downloadPaletteJson = useCallback(() => {
-    const palette = result.colorsByIndex.map((rgb, i) => ({
-      index: i,
-      hex: rgbToHex(rgb[0], rgb[1], rgb[2]),
-      rgb: { r: rgb[0], g: rgb[1], b: rgb[2] },
-    }));
-    const json = JSON.stringify(palette, null, 2);
-    const blob = new Blob([json], { type: "application/json" });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = "palette.json";
-    a.click();
-    URL.revokeObjectURL(url);
-  }, [result.colorsByIndex]);
-
-  const downloadPalettePdf = useCallback(() => {
-    generatePalettePdf(result.colorsByIndex);
-  }, [result.colorsByIndex]);
+  }, [result.colorsByIndex, result.outlineSvgText, result.svgText]);
 
   return (
     <div className="w-full flex flex-col gap-6">
       {/* Action bar */}
       <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border pb-4">
         <div className="flex items-center gap-2">
-          <button
-            onClick={() => setZoom(z => Math.max(0.25, z - 0.25))}
-            className="p-2 border border-border hover:bg-muted/50 transition-colors active:scale-[0.97]"
-            title="Zoom out"
-          >
-            <ZoomOut className="w-4 h-4" />
-          </button>
-          <span className="font-mono text-xs text-muted-foreground tabular-nums w-12 text-center">
-            {Math.round(zoom * 100)}%
-          </span>
-          <button
-            onClick={() => setZoom(z => Math.min(4, z + 0.25))}
-            className="p-2 border border-border hover:bg-muted/50 transition-colors active:scale-[0.97]"
-            title="Zoom in"
-          >
-            <ZoomIn className="w-4 h-4" />
-          </button>
-          <div className="w-px h-6 bg-border mx-2" />
-          {/* Toggle outline/filled preview */}
           <button
             onClick={() => setShowOutline(!showOutline)}
             className={`flex items-center gap-1.5 px-3 py-2 text-xs font-mono border transition-all active:scale-[0.97] ${
@@ -159,44 +94,17 @@ export function ResultView({ result, onReset }: ResultViewProps) {
 
         <div className="flex items-center gap-2 flex-wrap">
           <button
-            onClick={downloadSvg}
-            className="flex items-center gap-2 px-3 py-2 text-xs font-mono border border-border hover:border-foreground/30 transition-all active:scale-[0.97]"
-            title="Download filled SVG"
-          >
-            <Download className="w-3.5 h-3.5" />
-            SVG
-          </button>
-          <button
-            onClick={downloadOutlineSvg}
-            className="flex items-center gap-2 px-3 py-2 text-xs font-mono border border-border hover:border-foreground/30 transition-all active:scale-[0.97]"
-            title="Download outline-only SVG (for printing)"
-          >
-            <Pencil className="w-3.5 h-3.5" />
-            Outline
-          </button>
-          <button
-            onClick={downloadPng}
-            disabled={isPngGenerating}
+            onClick={downloadZip}
+            disabled={isZipGenerating}
             className="flex items-center gap-2 px-3 py-2 text-xs font-mono border border-border hover:border-foreground/30 transition-all active:scale-[0.97] disabled:opacity-50"
+            title="Download SVG, outline, PNG, palette PDF, and palette JSON"
           >
-            <Download className="w-3.5 h-3.5" />
-            PNG
-          </button>
-          <button
-            onClick={downloadPalettePdf}
-            className="flex items-center gap-2 px-3 py-2 text-xs font-mono border border-border hover:border-foreground/30 transition-all active:scale-[0.97]"
-            title="Download printable PDF palette sheet"
-          >
-            <FileText className="w-3.5 h-3.5" />
-            PDF
-          </button>
-          <button
-            onClick={downloadPaletteJson}
-            className="flex items-center gap-2 px-3 py-2 text-xs font-mono border border-border hover:border-foreground/30 transition-all active:scale-[0.97]"
-            title="Download palette as JSON"
-          >
-            <Download className="w-3.5 h-3.5" />
-            JSON
+            {isZipGenerating ? (
+              <Package className="w-3.5 h-3.5" />
+            ) : (
+              <Download className="w-3.5 h-3.5" />
+            )}
+            {isZipGenerating ? "Preparing ZIP" : "Download ZIP"}
           </button>
           <div className="w-px h-6 bg-border mx-1" />
           <button
@@ -212,12 +120,10 @@ export function ResultView({ result, onReset }: ResultViewProps) {
       {/* SVG preview */}
       <div
         ref={svgContainerRef}
-        className="w-full overflow-auto border border-border bg-white"
-        style={{ maxHeight: "60vh" }}
+        className="w-full overflow-hidden border border-border bg-muted/20 p-4 sm:p-6"
       >
         <div
-          className="inline-block origin-top-left"
-          style={{ transform: `scale(${zoom})` }}
+          className="mx-auto w-full border border-border bg-white sm:w-1/2 [&>svg]:block [&>svg]:h-auto [&>svg]:w-full"
           dangerouslySetInnerHTML={{ __html: activeSvg }}
         />
       </div>
@@ -226,6 +132,62 @@ export function ResultView({ result, onReset }: ResultViewProps) {
       <ColorPalette colorsByIndex={result.colorsByIndex} />
     </div>
   );
+}
+
+function createPaletteJson(colorsByIndex: number[][]) {
+  const palette = colorsByIndex.map((rgb, i) => ({
+    index: i,
+    hex: rgbToHex(rgb[0], rgb[1], rgb[2]),
+    rgb: { r: rgb[0], g: rgb[1], b: rgb[2] },
+  }));
+
+  return JSON.stringify(palette, null, 2);
+}
+
+async function createPngBlob(svgText: string): Promise<Blob> {
+  const parser = new DOMParser();
+  const svgDoc = parser.parseFromString(svgText, "image/svg+xml");
+  const svgEl = svgDoc.documentElement;
+  const { width, height } = getSvgPixelSize(svgEl);
+
+  const canvas = document.createElement("canvas");
+  canvas.width = width;
+  canvas.height = height;
+  const ctx = canvas.getContext("2d");
+  if (!ctx) {
+    throw new Error("Could not create PNG canvas context");
+  }
+
+  const img = new Image();
+  const svgBlob = new Blob([svgText], {
+    type: "image/svg+xml;charset=utf-8",
+  });
+  const url = URL.createObjectURL(svgBlob);
+
+  try {
+    await new Promise<void>((resolve, reject) => {
+      img.onload = () => {
+        ctx.fillStyle = "#ffffff";
+        ctx.fillRect(0, 0, width, height);
+        ctx.drawImage(img, 0, 0);
+        resolve();
+      };
+      img.onerror = reject;
+      img.src = url;
+    });
+  } finally {
+    URL.revokeObjectURL(url);
+  }
+
+  return new Promise((resolve, reject) => {
+    canvas.toBlob(blob => {
+      if (blob) {
+        resolve(blob);
+      } else {
+        reject(new Error("Could not create PNG blob"));
+      }
+    }, "image/png");
+  });
 }
 
 function getSvgPixelSize(svgEl: Element) {
