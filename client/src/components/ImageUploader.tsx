@@ -5,45 +5,29 @@
 
 import { useCallback, useRef, useState } from "react";
 import { Upload, ClipboardPaste } from "lucide-react";
-import { imageFileToData } from "../lib/imageData";
-import type { ImagePrepOptions } from "../lib/imageData";
 
 interface ImageUploaderProps {
-  onImageReady: (imageData: ImageData, previewUrl: string) => void;
+  onFileSelected: (file: File) => void;
   maxWidth?: number;
   maxHeight?: number;
-  prepOptions?: ImagePrepOptions;
 }
 
 export function ImageUploader({
-  onImageReady,
+  onFileSelected,
   maxWidth = 1024,
   maxHeight = 1024,
-  prepOptions,
 }: ImageUploaderProps) {
   const [isDragging, setIsDragging] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
-
-  const processFile = useCallback(
-    async (file: File) => {
-      const { imageData, previewUrl } = await imageFileToData(file, {
-        ...prepOptions,
-        maxWidth,
-        maxHeight,
-      });
-      onImageReady(imageData, previewUrl);
-    },
-    [onImageReady, maxWidth, maxHeight, prepOptions]
-  );
 
   const handleDrop = useCallback(
     (e: React.DragEvent) => {
       e.preventDefault();
       setIsDragging(false);
       const file = e.dataTransfer.files[0];
-      if (file) void processFile(file);
+      if (file) onFileSelected(file);
     },
-    [processFile]
+    [onFileSelected]
   );
 
   const handlePaste = useCallback(
@@ -53,20 +37,20 @@ export function ImageUploader({
         const item = items[i];
         if (item.type.startsWith("image/")) {
           const file = item.getAsFile();
-          if (file) void processFile(file);
+          if (file) onFileSelected(file);
           break;
         }
       }
     },
-    [processFile]
+    [onFileSelected]
   );
 
   const handleFileChange = useCallback(
     (e: React.ChangeEvent<HTMLInputElement>) => {
       const file = e.target.files?.[0];
-      if (file) void processFile(file);
+      if (file) onFileSelected(file);
     },
-    [processFile]
+    [onFileSelected]
   );
 
   return (

@@ -10,6 +10,7 @@ import { ResultView } from "../components/ResultView";
 import { SettingsPanel } from "../components/SettingsPanel";
 import { usePbnWorker, type PbnSettings } from "../hooks/usePbnWorker";
 import { imageFileToData } from "../lib/imageData";
+import type { PreparedImage } from "../lib/imageData";
 
 const LOGO_URL =
   "https://d2xsxph8kpxj0f.cloudfront.net/310519663056684383/hgP5jjpvxGXvGrobPfFbvS/pbn-logo-gZVHmbuQ3u4ghWCuDz7qhk.webp";
@@ -35,20 +36,71 @@ export default function Home() {
     orientation: "landscape",
   });
 
+  const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [preparedImage, setPreparedImage] = useState<PreparedImage | null>(null);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+  const [isPreparing, setIsPreparing] = useState(false);
+  const [prepError, setPrepError] = useState<string | null>(null);
 
-  const handleImageReady = useCallback(
-    (imageData: ImageData, preview: string) => {
-      setPreviewUrl(preview);
-      process(imageData, settings);
-    },
-    [process, settings]
-  );
+  const handleFileSelected = useCallback((file: File) => {
+    setSelectedFile(file);
+    setPreparedImage(null);
+    setPreviewUrl(null);
+    setPrepError(null);
+  }, []);
+
+  const handleCreate = useCallback(() => {
+    if (!preparedImage || isPreparing) return;
+    process(preparedImage.imageData, settings);
+  }, [isPreparing, preparedImage, process, settings]);
 
   const handleReset = useCallback(() => {
     reset();
+    setSelectedFile(null);
+    setPreparedImage(null);
     setPreviewUrl(null);
+    setPrepError(null);
   }, [reset]);
+
+  useEffect(() => {
+    if (!selectedFile || status !== "idle") return;
+
+    let isActive = true;
+    setIsPreparing(true);
+    setPrepError(null);
+
+    void imageFileToData(selectedFile, {
+      treatment: settings.imageTreatment,
+      paperSize: settings.paperSize,
+      orientation: settings.orientation,
+    })
+      .then(prepared => {
+        if (!isActive) return;
+        setPreparedImage(prepared);
+        setPreviewUrl(prepared.previewUrl);
+      })
+      .catch(error => {
+        if (!isActive) return;
+        setPreparedImage(null);
+        setPreviewUrl(null);
+        setPrepError((error as Error).message || "Could not prepare image");
+      })
+      .finally(() => {
+        if (isActive) {
+          setIsPreparing(false);
+        }
+      });
+
+    return () => {
+      isActive = false;
+    };
+  }, [
+    selectedFile,
+    settings.imageTreatment,
+    settings.orientation,
+    settings.paperSize,
+    status,
+  ]);
 
   // Global paste handler
   useEffect(() => {
@@ -62,14 +114,7 @@ export default function Home() {
         if (item.type.startsWith("image/")) {
           const file = item.getAsFile();
           if (file) {
-            void imageFileToData(file, {
-              treatment: settings.imageTreatment,
-              paperSize: settings.paperSize,
-              orientation: settings.orientation,
-            }).then(({ imageData, previewUrl }) => {
-              setPreviewUrl(previewUrl);
-              process(imageData, settings);
-            });
+            handleFileSelected(file);
           }
           break;
         }
@@ -78,7 +123,7 @@ export default function Home() {
 
     document.addEventListener("paste", handlePaste);
     return () => document.removeEventListener("paste", handlePaste);
-  }, [status, process, settings]);
+  }, [handleFileSelected, status]);
 
   return (
     <div className="min-h-screen flex flex-col">
@@ -95,7 +140,7 @@ export default function Home() {
       {/* Main content */}
       <main className="flex-1 container py-8">
         <div className="max-w-4xl mx-auto flex flex-col gap-6">
-          {/* Idle state: upload + settings */}
+          {/* Idle state: upload, verify, configure, create */}
           {status === "idle" && !result && (
             <>
               <div className="mb-2">
@@ -106,15 +151,81 @@ export default function Home() {
                   All processing runs locally in your browser.
                 </p>
               </div>
-              <ImageUploader
-                onImageReady={handleImageReady}
-                prepOptions={{
-                  treatment: settings.imageTreatment,
-                  paperSize: settings.paperSize,
-                  orientation: settings.orientation,
-                }}
-              />
-              <SettingsPanel settings={settings} onChange={setSettings} />
+
+              {!selectedFile && (
+                <ImageUploader onFileSelected={handleFileSelected} />
+              )}
+
+              {selectedFile && (
+                <>
+                  <section className="grid gap-4 border border-border p-4 sm:grid-cols-[220px_1fr]">
+                    <div className="border border-border bg-white aspect-square overflow-hidden">
+                      {previewUrl ? (
+                        <img
+                          src={previewUrl}
+                          alt="Prepared source preview"
+                          className="w-full h-full object-cover"
+                        />
+                      ) : (
+                        <div className="w-full h-full flex items-center justify-center p-4 text-center font-mono text-xs text-muted-foreground">
+                          Preparing preview
+                        </div>
+                      )}
+                    </div>
+
+                    <div className="flex flex-col justify-between gap-4">
+                      <div>
+                        <p className="font-mono text-xs uppercase tracking-wide text-muted-foreground">
+                          Selected image
+                        </p>
+                        <h3 className="mt-1 text-base font-medium break-all">
+                          {selectedFile.name}
+                        </h3>
+                        <p className="mt-2 text-sm text-muted-foreground">
+                          Verify the image, choose the artwork settings below,
+                          then create the paint-by-numbers output.
+                        </p>
+                        {prepError && (
+                          <p className="mt-3 font-mono text-xs text-destructive">
+                            {prepError}
+                          </p>
+                        )}
+                      </div>
+
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setSelectedFile(null);
+                          setPreparedImage(null);
+                          setPreviewUrl(null);
+                          setPrepError(null);
+                        }}
+                        className="w-fit px-4 py-2 text-sm font-mono border border-border hover:border-foreground/30 transition-all active:scale-[0.97]"
+                      >
+                        Change image
+                      </button>
+                    </div>
+                  </section>
+
+                  <SettingsPanel settings={settings} onChange={setSettings} />
+
+                  <div className="flex items-center justify-between gap-4 border border-border p-4">
+                    <p className="text-sm text-muted-foreground">
+                      {isPreparing
+                        ? "Preparing the preview with your selected settings."
+                        : "Ready to create your numbered artwork."}
+                    </p>
+                    <button
+                      type="button"
+                      onClick={handleCreate}
+                      disabled={!preparedImage || isPreparing || !!prepError}
+                      className="px-5 py-2 text-sm font-mono border border-foreground bg-foreground text-background transition-all active:scale-[0.97] disabled:opacity-50"
+                    >
+                      {isPreparing ? "Preparing" : "Create"}
+                    </button>
+                  </div>
+                </>
+              )}
             </>
           )}
 
@@ -137,7 +248,10 @@ export default function Home() {
                 isQuiet={isQuiet}
                 onCancel={() => {
                   cancel();
+                  setSelectedFile(null);
+                  setPreparedImage(null);
                   setPreviewUrl(null);
+                  setPrepError(null);
                 }}
               />
             </div>
