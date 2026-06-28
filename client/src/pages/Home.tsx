@@ -29,7 +29,7 @@ export default function Home() {
   const [settings, setSettings] = useState<PbnSettings>({
     imageTreatment: "color",
     paletteSize: 14,
-    paperSize: "A4",
+    paperSize: "A1",
     orientation: "landscape",
   });
 

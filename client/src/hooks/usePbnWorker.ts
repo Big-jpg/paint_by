@@ -37,7 +37,7 @@ export interface PbnResult {
 const DEFAULT_SETTINGS: PbnSettings = {
   imageTreatment: "color",
   paletteSize: 14,
-  paperSize: "A4",
+  paperSize: "A1",
   orientation: "landscape",
 };
 

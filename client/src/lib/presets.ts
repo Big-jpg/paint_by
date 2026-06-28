@@ -1,6 +1,6 @@
 export type ImageTreatment = "color" | "grayscale" | "sepia" | "sunset";
 export type PaletteSize = 7 | 14 | 21 | 28;
-export type PaperSize = "A4" | "A3" | "A2" | "A1";
+export type PaperSize = "A1";
 export type PageOrientation = "landscape" | "portrait";
 
 export const TREATMENT_LABELS: Record<ImageTreatment, string> = {
@@ -50,16 +50,13 @@ export const TREATMENT_PALETTES: Record<ImageTreatment, string[]> = {
 };
 
 export const PALETTE_SIZES: PaletteSize[] = [7, 14, 21, 28];
-export const PAPER_SIZES: PaperSize[] = ["A4", "A3", "A2", "A1"];
+export const PAPER_SIZES: PaperSize[] = ["A1"];
 export const PAGE_ORIENTATIONS: PageOrientation[] = ["landscape", "portrait"];
 
 export const PAPER_DIMENSIONS_MM: Record<
   PaperSize,
   { width: number; height: number }
 > = {
-  A4: { width: 210, height: 297 },
-  A3: { width: 297, height: 420 },
-  A2: { width: 420, height: 594 },
   A1: { width: 594, height: 841 },
 };
 

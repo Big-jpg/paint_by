@@ -133,7 +133,7 @@ export function SettingsPanel({
               title="Print format"
             />
             <div className="grid gap-3 lg:grid-cols-[1fr_auto]">
-              <div className="grid grid-cols-4 gap-2">
+              <div className="grid grid-cols-1 gap-2 lg:w-24">
                 {PAPER_SIZES.map(size => (
                   <button
                     key={size}

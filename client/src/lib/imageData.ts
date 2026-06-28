@@ -26,7 +26,7 @@ export async function imageFileToData(
     maxWidth = 1024,
     maxHeight = 1024,
     treatment = "color",
-    paperSize = "A4",
+    paperSize = "A1",
     orientation = "landscape",
   } = options;
 
