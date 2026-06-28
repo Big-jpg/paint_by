@@ -158,16 +158,16 @@ export default function Home() {
 
               {selectedFile && (
                 <>
-                  <section className="grid gap-4 border border-border p-4 sm:grid-cols-[220px_1fr]">
-                    <div className="border border-border bg-white aspect-square overflow-hidden">
+                  <section className="grid gap-5 border border-border p-4 lg:grid-cols-[minmax(320px,0.8fr)_1fr]">
+                    <div className="border border-border bg-white overflow-hidden">
                       {previewUrl ? (
                         <img
                           src={previewUrl}
                           alt="Prepared source preview"
-                          className="w-full h-full object-cover"
+                          className="block w-full max-h-[360px] object-contain"
                         />
                       ) : (
-                        <div className="w-full h-full flex items-center justify-center p-4 text-center font-mono text-xs text-muted-foreground">
+                        <div className="min-h-[220px] flex items-center justify-center p-4 text-center font-mono text-xs text-muted-foreground">
                           Preparing preview
                         </div>
                       )}
